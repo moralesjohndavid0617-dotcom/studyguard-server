@@ -8,7 +8,6 @@ app.use(cors());
 
 const server = http.createServer(app);
 
-// Initialize Socket.io with CORS enabled (allows all connections)
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -18,48 +17,49 @@ const io = new Server(server, {
 
 console.log("🚀 Signaling Server starting...");
 
-// --- MAIN CONNECTION BLOCK ---
 io.on("connection", (socket) => {
   console.log(`✅ User Connected: ${socket.id}`);
 
-  // 1. Join a Class Room
-  socket.on("join_class", (classId) => {
-    socket.join(classId);
-    console.log(`User ${socket.id} joined class: ${classId}`);
+  // 1. Join a Class Room (Match Flutter 'join_room')
+  socket.on("join_room", (roomId) => {
+    socket.join(roomId);
+    console.log(`User ${socket.id} joined room: ${roomId}`);
   });
 
-  // 2. Chat Messages (FIXED: Now inside the connection block)
+  // 2. Ready Signal (Added to trigger the handshake)
+  socket.on("ready", (roomId) => {
+    console.log(`🚀 Room ${roomId} is ready for video`);
+    socket.to(roomId).emit("ready");
+  });
+
+  // 3. Chat Messages
   socket.on("chat_message", (data) => {
     console.log(`📩 Message in ${data.room}: ${data.message}`);
-    // Send to everyone in the room EXCEPT the sender
     socket.to(data.room).emit("chat_message", data);
   });
 
-  // 3. WebRTC Signaling (For Video Calls)
+  // 4. WebRTC Signaling (Matches Flutter 'offer' and 'answer')
   socket.on("offer", (data) => {
     console.log("📡 Offer received");
-    socket.to(data.room).emit("offer", data);
+    socket.to(data.roomId).emit("offer", data);
   });
 
   socket.on("answer", (data) => {
     console.log("📡 Answer received");
-    socket.to(data.room).emit("answer", data);
+    socket.to(data.roomId).emit("answer", data);
   });
 
-  socket.on("ice-candidate", (data) => {
-    // console.log("❄️ ICE Candidate received"); // Uncomment to see all candidates
-    socket.to(data.room).emit("ice-candidate", data);
+  // 5. ICE Candidate (Fixed name to 'ice_candidate' to match Flutter)
+  socket.on("ice_candidate", (data) => {
+    socket.to(data.roomId).emit("ice_candidate", data);
   });
 
-  // 4. Disconnect
   socket.on("disconnect", () => {
     console.log("❌ User Disconnected", socket.id);
   });
 });
 
-// --- START SERVER ---
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server is running on port ${PORT}`);
-  console.log(`👉 Local: http://localhost:${PORT}`);
 });
